@@ -1,9 +1,11 @@
 import cors from "cors";
-import express, { type ErrorRequestHandler } from "express";
+import express from "express";
 import helmet from "helmet";
 import { meRouter } from "./auth/me.js";
 import { authRouter } from "./auth/router.js";
+import { getCorsConfig } from "./config.js";
 import { feedRouter } from "./feed/router.js";
+import { notFoundHandler, unhandledErrorHandler } from "./http/errors.js";
 import { postsRouter } from "./posts/router.js";
 import { usersRouter } from "./users/router.js";
 
@@ -11,7 +13,7 @@ export const createApp = () => {
   const app = express();
 
   app.use(helmet());
-  app.use(cors());
+  app.use(cors(getCorsConfig()));
   app.use(express.json({ limit: "1mb" }));
 
   app.use("/api/auth", authRouter);
@@ -27,35 +29,8 @@ export const createApp = () => {
     });
   });
 
-  app.use((_req, res) => {
-    res.status(404).json({
-      error: {
-        code: "not_found",
-        message: "The requested resource was not found."
-      }
-    });
-  });
-
-  const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-    console.error("Unhandled request error", {
-      name: err instanceof Error ? err.name : undefined,
-      code:
-        typeof err === "object" && err !== null && "code" in err
-          ? err.code
-          : undefined,
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined
-    });
-
-    res.status(500).json({
-      error: {
-        code: "internal_server_error",
-        message: "An unexpected error occurred."
-      }
-    });
-  };
-
-  app.use(errorHandler);
+  app.use(notFoundHandler);
+  app.use(unhandledErrorHandler);
 
   return app;
 };

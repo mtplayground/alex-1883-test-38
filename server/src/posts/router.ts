@@ -2,19 +2,24 @@ import { Router, type ErrorRequestHandler, type RequestHandler } from "express";
 import multer from "multer";
 import { getAuthenticatedUser, requireAuth } from "../auth/middleware.js";
 import { prisma } from "../db/client.js";
+import {
+  ApiError,
+  asyncHandler,
+  sendApiError,
+  sendErrorResponse
+} from "../http/errors.js";
 import { uploadImageObject } from "../storage/client.js";
 
-type AsyncRequestHandler = (
-  ...args: Parameters<RequestHandler>
-) => Promise<void>;
-
-class PostRequestError extends Error {
+class PostRequestError extends ApiError {
   constructor(
     message: string,
-    public statusCode = 400,
-    public code = "invalid_post_request"
+    statusCode = 400,
+    code = "invalid_post_request"
   ) {
-    super(message);
+    super(message, {
+      code,
+      statusCode
+    });
     this.name = "PostRequestError";
   }
 }
@@ -47,12 +52,6 @@ const upload = multer({
   },
   storage: multer.memoryStorage()
 });
-
-const asyncHandler =
-  (handler: AsyncRequestHandler): RequestHandler =>
-  (req, res, next) => {
-    void handler(req, res, next).catch(next);
-  };
 
 const parseCaption = (value: unknown) => {
   if (typeof value === "undefined") {
@@ -214,15 +213,14 @@ const ensureCommentCursorBelongsToPost = async (
 const imageUpload: RequestHandler = (req, res, next) => {
   upload.single("image")(req, res, (error: unknown) => {
     if (error instanceof multer.MulterError) {
-      res.status(400).json({
-        error: {
-          code: "invalid_upload",
-          message:
-            error.code === "LIMIT_FILE_SIZE"
-              ? "Image must be 10 MB or smaller."
-              : "Image upload was invalid."
-        }
-      });
+      sendErrorResponse(
+        res,
+        400,
+        "invalid_upload",
+        error.code === "LIMIT_FILE_SIZE"
+          ? "Image must be 10 MB or smaller."
+          : "Image upload was invalid."
+      );
       return;
     }
 
@@ -471,12 +469,7 @@ postsRouter.post(
 
 const postErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error instanceof PostRequestError) {
-    res.status(error.statusCode).json({
-      error: {
-        code: error.code,
-        message: error.message
-      }
-    });
+    sendApiError(res, error);
     return;
   }
 

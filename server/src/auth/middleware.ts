@@ -2,6 +2,7 @@ import { parse } from "cookie";
 import type { RequestHandler, Response } from "express";
 import { getAuthConfig } from "../config.js";
 import { prisma } from "../db/client.js";
+import { sendErrorResponse } from "../http/errors.js";
 import { verifySessionToken } from "./session.js";
 
 export type AuthenticatedUser = {
@@ -15,12 +16,7 @@ export type AuthenticatedUser = {
 };
 
 const unauthorized = (res: Response) => {
-  res.status(401).json({
-    error: {
-      code: "unauthorized",
-      message: "Authentication required."
-    }
-  });
+  sendErrorResponse(res, 401, "unauthorized", "Authentication required.");
 };
 
 const getBearerToken = (authorizationHeader: string | undefined) => {

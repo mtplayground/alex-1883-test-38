@@ -1,17 +1,15 @@
 import { createApp } from "./app.js";
-import { serverConfig } from "./config.js";
+import { serverConfig, validateEnvironment } from "./config.js";
 import { connectDatabase, disconnectDatabase } from "./db/client.js";
+import { logErrorDetails } from "./http/errors.js";
 
 const logError = (message: string, error: unknown) => {
-  console.error(message, {
-    name: error instanceof Error ? error.name : undefined,
-    message: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined
-  });
+  logErrorDetails(message, error);
 };
 
 const startServer = async () => {
   try {
+    validateEnvironment();
     await connectDatabase();
 
     const app = createApp();

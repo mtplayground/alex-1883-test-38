@@ -38,6 +38,17 @@ Build all workspaces:
 npm run build
 ```
 
+Run all validation checks:
+
+```bash
+export DATABASE_URL=postgresql://user:password@host:5432/alex_1883_test_38
+npm run lint
+npm run format:check
+npm run typecheck
+npm run test
+npm run test:e2e
+```
+
 Generate the Prisma client:
 
 ```bash
@@ -64,6 +75,65 @@ OBJECT_STORAGE_PREFIX=
 
 Google OAuth and JWT settings are also defined in `.env.example` for the
 authentication issues that build on this scaffold.
+
+## Self-Host Checklist
+
+1. Provision PostgreSQL and S3-compatible object storage. PostgreSQL is required
+   for all persistent state; do not use SQLite, JSON files, or ephemeral local
+   storage for application data.
+2. Copy `.env.example` to the host environment and set every required value:
+   `DATABASE_URL`, `OBJECT_STORAGE_*`, `GOOGLE_*`, `JWT_SECRET`, `HOST`,
+   `PORT`, and `CORS_ORIGIN`. Use a `JWT_SECRET` with at least 32 characters.
+3. Configure Google OAuth with
+   `GOOGLE_OAUTH_REDIRECT_URI=https://<api-host>/api/auth/google/callback` and
+   set `AUTH_SUCCESS_REDIRECT_URL` to the frontend origin that should receive the
+   user after sign-in.
+4. Build the frontend with production API and object URLs available at build
+   time:
+
+   ```bash
+   export VITE_API_BASE_URL=https://<api-host>
+   export VITE_OBJECT_STORAGE_PUBLIC_BASE_URL=https://<public-object-host>/<prefix>
+   npm run build --workspace web
+   ```
+
+5. Install dependencies and deploy database migrations before starting the API:
+
+   ```bash
+   npm ci
+   npm run prisma:migrate:deploy --workspace server
+   npm run build --workspace server
+   ```
+
+6. Start the API process. Startup validates required environment variables,
+   checks URL-shaped values, verifies the JWT secret length, and connects to
+   PostgreSQL before listening.
+
+   ```bash
+   npm run start --workspace server
+   ```
+
+7. Serve `web/dist` from a static host or CDN. The API and frontend may be on
+   separate origins as long as `VITE_API_BASE_URL`, Google OAuth redirect
+   settings, `CORS_ORIGIN`, and cookie settings point at the deployed API
+   origin.
+8. Verify the deployment:
+
+   ```bash
+   curl https://<api-host>/api/health
+   npm run prisma:migrate:status --workspace server
+   ```
+
+API errors use a consistent JSON envelope:
+
+```json
+{
+  "error": {
+    "code": "machine_readable_code",
+    "message": "Human-readable message."
+  }
+}
+```
 
 The backend exposes Google OAuth routes at:
 

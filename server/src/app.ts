@@ -5,6 +5,7 @@ import { meRouter } from "./auth/me.js";
 import { authRouter } from "./auth/router.js";
 import { feedRouter } from "./feed/router.js";
 import { postsRouter } from "./posts/router.js";
+import { usersRouter } from "./users/router.js";
 
 export const createApp = () => {
   const app = express();
@@ -17,6 +18,7 @@ export const createApp = () => {
   app.use(meRouter);
   app.use("/api/feed", feedRouter);
   app.use("/api/posts", postsRouter);
+  app.use("/api/users", usersRouter);
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({

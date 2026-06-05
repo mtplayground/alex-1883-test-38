@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { config } from "./config.js";
+import { serverConfig } from "./config.js";
 import { connectDatabase, disconnectDatabase } from "./db/client.js";
 
 const logError = (message: string, error: unknown) => {
@@ -15,9 +15,9 @@ const startServer = async () => {
     await connectDatabase();
 
     const app = createApp();
-    const server = app.listen(config.port, config.host, () => {
+    const server = app.listen(serverConfig.port, serverConfig.host, () => {
       console.log(
-        `alex-1883-test-38 server listening on http://${config.host}:${config.port}`
+        `alex-1883-test-38 server listening on http://${serverConfig.host}:${serverConfig.port}`
       );
     });
 

@@ -1,16 +1,59 @@
 import { useAuth } from "./auth/AuthContext";
+import type { CurrentUser } from "./api/auth";
+
+function getInitials(user: CurrentUser) {
+  const source = user.name.trim() || user.email;
+  const initials = source
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return initials || "?";
+}
+
+function UserAvatar({ user }: { user: CurrentUser }) {
+  if (user.avatarUrl) {
+    return (
+      <img
+        alt=""
+        className="h-9 w-9 rounded-full border border-slate-200 bg-white object-cover"
+        referrerPolicy="no-referrer"
+        src={user.avatarUrl}
+      />
+    );
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-mint text-sm font-bold text-ink"
+    >
+      {getInitials(user)}
+    </div>
+  );
+}
+
+function UserBadge({ user }: { user: CurrentUser }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <UserAvatar user={user} />
+      <div className="hidden min-w-0 sm:block">
+        <p className="max-w-44 truncate text-sm font-semibold text-slate-950">
+          {user.name}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function SignInButton() {
-  const { error, signIn, status } = useAuth();
+  const { error, signIn, status, user } = useAuth();
   const isLoading = status === "loading";
-  const isAuthenticated = status === "authenticated";
+  const isAuthenticated = status === "authenticated" && user;
 
   if (isAuthenticated) {
-    return (
-      <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
-        Signed in
-      </div>
-    );
+    return <UserBadge user={user} />;
   }
 
   return (

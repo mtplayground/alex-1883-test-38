@@ -13,6 +13,13 @@ Install dependencies:
 npm install
 ```
 
+Create a local environment file from the example and fill in real secret
+values:
+
+```bash
+cp .env.example .env
+```
+
 Run the frontend on `0.0.0.0:8080`:
 
 ```bash
@@ -54,3 +61,6 @@ OBJECT_STORAGE_ACCESS_KEY_ID=
 OBJECT_STORAGE_SECRET_ACCESS_KEY=
 OBJECT_STORAGE_PREFIX=
 ```
+
+Google OAuth and JWT settings are also defined in `.env.example` for the
+authentication issues that build on this scaffold.

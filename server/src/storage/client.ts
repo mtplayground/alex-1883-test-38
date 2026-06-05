@@ -5,7 +5,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { getObjectStorageConfig } from "./config.js";
+import { getObjectStorageConfig } from "../config.js";
 
 export type UploadImageObjectInput = {
   body: Buffer | Uint8Array;

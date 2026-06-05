@@ -1,5 +1,7 @@
 target/
 node_modules/
+dist/
+*.tsbuildinfo
 .gh_token
 .claude/
 .database_url

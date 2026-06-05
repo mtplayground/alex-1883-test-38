@@ -1,0 +1,46 @@
+# Architecture Plan
+
+Product/repo: alex-1883-test-38. No local PRODUCT.md is present at setup time, so future sessions should continue to use issue text and any later PRODUCT.md as the source of product naming.
+
+## Module Structure
+
+- `web/`: React + TypeScript frontend, likely Vite for fast local dev and predictable test tooling.
+  - `src/main.tsx`, `src/App.tsx`: app bootstrap and routes/layout.
+  - `src/api/`: typed API client, request helpers, auth-aware fetch wrapper.
+  - `src/auth/`: auth context/provider and current-user hooks.
+  - `src/components/`: reusable UI such as sign-in button, post card, upload form, follow button.
+  - `src/pages/`: feed, profile, and any auth callback/status views.
+  - `src/types/`: shared frontend-facing DTOs imported from or aligned with `shared/`.
+- `server/`: Node + Express + TypeScript backend.
+  - `src/index.ts`: process bootstrap and server startup.
+  - `src/app.ts`: Express app composition and middleware.
+  - `src/config/`: environment validation and typed config.
+  - `src/db/`: Prisma client lifecycle.
+  - `src/storage/`: S3-compatible object storage client and upload helpers.
+  - `src/auth/`: Google OAuth, JWT/session issuance, auth middleware.
+  - `src/modules/users`, `posts`, `likes`, `comments`, `follows`: route/controller/service boundaries by feature.
+  - `prisma/schema.prisma` and `prisma/migrations/`: database schema and migrations.
+- `shared/`: TypeScript DTOs and validation schemas shared by web and server where practical.
+- Root workspace files: package manager workspace config, shared TypeScript config, ESLint/Prettier config, and scripts that delegate to `web` and `server`.
+
+## Issue Dependencies
+
+- Foundation: #1 creates the monorepo; #2 adds lint/format/TypeScript; #5 defines env validation and `.env.example`.
+- Infrastructure: #3 adds PostgreSQL/Prisma; #4 adds object storage. These should be established before feature endpoints that persist data or files.
+- Auth path: #6 users model -> #7 Google OAuth -> #8 auth middleware and `/me` -> #9 auth context/sign-in -> #10 user display.
+- Posting path: #11 posts model -> #12 upload endpoint -> #13 upload form -> #14 feed endpoint -> #15 feed UI/post card.
+- Interaction path: #16 likes/comments models -> #17 like endpoints and #18 comment endpoints -> #19 like/comment UI.
+- Social/profile path: #20 follows model -> #21 follow endpoints -> #22 profile endpoint -> #23 profile page/follow button.
+- Quality and deployment: #24 backend unit tests and #25 frontend component tests should cover the stabilized modules; #26 E2E covers sign-in/upload/feed/like; #27 finalizes error handling, env checks, and self-host deployment notes.
+
+## Key Design Decisions
+
+- Keep the server as the API authority: Prisma models, auth decisions, object keys, counts, and pagination are computed server-side.
+- Use typed request/response DTOs in `shared/` or mirrored Zod schemas to prevent frontend/backend drift.
+- Validate all required environment variables at server startup; keep `.env.example` complete but free of secrets.
+- Store uploaded images in object storage and persist only object keys plus derived public/signed URLs as needed.
+- Use JWT-bearing HTTP-only cookies if possible for browser auth; if bearer tokens are required, isolate token handling inside the frontend auth client.
+- Normalize database constraints early: unique Google subject for users, unique `(userId, postId)` likes, unique `(followerId, followeeId)` follows, and no self-follow.
+- Return feed/profile DTOs with author info and aggregate counts so frontend components remain simple and avoid chatty request patterns.
+- Centralize API error responses with stable `{ error: { code, message } }` shape before broad endpoint work, then review comprehensively in #27.
+- Tests should be layered: service/controller tests for backend behavior, component tests for user workflows, and one E2E test for the critical happy path.

@@ -221,7 +221,7 @@ function ProfilePhotoCard({ post }: { post: ProfilePost }) {
   );
 }
 
-function ProfilePage({
+export function ProfilePage({
   isAuthenticated,
   userId
 }: {
@@ -483,7 +483,7 @@ function ProfilePage({
   );
 }
 
-function UploadForm({
+export function UploadForm({
   isAuthenticated,
   onUploaded
 }: {

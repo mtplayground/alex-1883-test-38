@@ -70,4 +70,5 @@ The backend exposes Google OAuth routes at:
 ```bash
 GET /api/auth/google
 GET /api/auth/google/callback
+GET /me
 ```

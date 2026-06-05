@@ -26,3 +26,30 @@ export const createSessionToken = (user: SessionUser) => {
 
   return jwt.sign(payload, jwtConfig.secret, options);
 };
+
+const isSessionTokenPayload = (
+  value: unknown
+): value is SessionTokenPayload => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    typeof candidate.sub === "string" &&
+    typeof candidate.email === "string" &&
+    typeof candidate.googleSubjectId === "string"
+  );
+};
+
+export const verifySessionToken = (token: string): SessionTokenPayload => {
+  const jwtConfig = getJwtConfig();
+  const decoded = jwt.verify(token, jwtConfig.secret);
+
+  if (!isSessionTokenPayload(decoded)) {
+    throw new Error("Session token payload was invalid");
+  }
+
+  return decoded;
+};

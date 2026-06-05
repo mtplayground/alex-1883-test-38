@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.claude/
+.database_url
+.db_decision
+.env.production
+.gh_token
+.progress
+.storage_decision

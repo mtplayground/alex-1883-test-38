@@ -50,6 +50,22 @@ function AuthorAvatar({ author }: { author: FeedAuthor }) {
   );
 }
 
+function AuthorLink({ author }: { author: FeedAuthor }) {
+  return (
+    <a
+      className="flex min-w-0 items-center gap-3 rounded-md outline-none transition hover:text-coral focus:ring-2 focus:ring-coral/30"
+      href={`#/users/${author.id}`}
+    >
+      <AuthorAvatar author={author} />
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">
+          {author.name}
+        </p>
+      </div>
+    </a>
+  );
+}
+
 export function PostCard({
   isAuthenticated,
   post
@@ -190,11 +206,8 @@ export function PostCard({
   return (
     <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <header className="flex items-center gap-3 px-4 py-3">
-        <AuthorAvatar author={post.author} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-950">
-            {post.author.name}
-          </p>
+        <AuthorLink author={post.author} />
+        <div className="ml-auto shrink-0 text-right">
           <p className="text-xs font-medium text-slate-500">
             {formatPostedAt(post.createdAt)}
           </p>

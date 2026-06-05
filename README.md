@@ -75,4 +75,6 @@ GET /api/feed
 POST /api/posts
 POST /api/posts/:postId/like
 DELETE /api/posts/:postId/like
+GET /api/posts/:postId/comments
+POST /api/posts/:postId/comments
 ```

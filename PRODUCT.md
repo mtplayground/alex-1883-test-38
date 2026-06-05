@@ -8,10 +8,15 @@ posts, and view user profiles with follow stats.
 
 ## Current Capabilities
 
-- Google OAuth sign-in with a server-issued JWT session cookie.
-- Authenticated current-user endpoint at `GET /me`.
+- Google OAuth sign-in with a server-issued JWT session cookie when real Google
+  credentials are configured; otherwise sign-in returns a clear unavailable
+  response instead of using placeholder credentials.
+- Current-user endpoint at `GET /me`; anonymous browsers receive
+  `{ "user": null }`, while invalid tokens still receive an auth error.
 - Image upload flow: the frontend previews a selected image, the backend stores
-  it in S3-compatible object storage, and a `posts` record is created.
+  it in S3-compatible object storage, and a `posts` record is created when real
+  object-storage credentials are configured. Uploads are disabled with a clear
+  unavailable response when storage is not configured.
 - Paginated feed API and UI showing posts with author, caption, image, like
   count, and comment count.
 - Like and unlike endpoints plus a frontend like button.
@@ -27,15 +32,23 @@ posts, and view user profiles with follow stats.
   - `server/`: Node.js, Express, TypeScript, Prisma.
 - PostgreSQL is the only persistent data store. Prisma models cover users,
   posts, likes, comments, and follows.
+- Google OAuth and object storage are optional deployment integrations. If any
+  variable in one of those groups is provided, startup validates the whole group;
+  if the group is absent, the related feature is no-op/unavailable rather than
+  using fabricated credentials.
 - Object storage is S3-compatible and configured through `OBJECT_STORAGE_*`
   environment variables. Object keys are normalized and prefixed through the
-  storage client.
+  storage client, and uploads send concrete content lengths.
 - The frontend reads `VITE_API_BASE_URL` and
   `VITE_OBJECT_STORAGE_PUBLIC_BASE_URL` at build/runtime as Vite env values.
+- The Express server serves the built Vite frontend from `web/dist` when present
+  and keeps API routes under explicit prefixes before the SPA fallback.
 - API errors use a consistent JSON envelope:
   `{ "error": { "code": "...", "message": "..." } }`.
 - Server startup validates required env vars, URL-shaped settings, and JWT
   secret length before listening.
+- Production deployments keep the PostgreSQL pool warm to avoid pooled-proxy idle
+  disconnect noise in logs.
 
 ## Conventions
 

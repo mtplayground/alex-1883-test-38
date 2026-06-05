@@ -71,4 +71,5 @@ The backend exposes Google OAuth routes at:
 GET /api/auth/google
 GET /api/auth/google/callback
 GET /me
+POST /api/posts
 ```

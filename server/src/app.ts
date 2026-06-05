@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler } from "express";
 import helmet from "helmet";
 import { meRouter } from "./auth/me.js";
 import { authRouter } from "./auth/router.js";
+import { postsRouter } from "./posts/router.js";
 
 export const createApp = () => {
   const app = express();
@@ -13,6 +14,7 @@ export const createApp = () => {
 
   app.use("/api/auth", authRouter);
   app.use(meRouter);
+  app.use("/api/posts", postsRouter);
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({

@@ -64,3 +64,10 @@ OBJECT_STORAGE_PREFIX=
 
 Google OAuth and JWT settings are also defined in `.env.example` for the
 authentication issues that build on this scaffold.
+
+The backend exposes Google OAuth routes at:
+
+```bash
+GET /api/auth/google
+GET /api/auth/google/callback
+```

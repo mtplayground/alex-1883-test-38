@@ -43,3 +43,14 @@ Deploy database migrations with `DATABASE_URL` from the environment:
 export DATABASE_URL=$(cat /workspace/.database_url)
 npm run prisma:migrate:deploy --workspace server
 ```
+
+Object storage uploads use S3-compatible settings from the environment:
+
+```bash
+OBJECT_STORAGE_ENDPOINT=
+OBJECT_STORAGE_REGION=
+OBJECT_STORAGE_BUCKET=
+OBJECT_STORAGE_ACCESS_KEY_ID=
+OBJECT_STORAGE_SECRET_ACCESS_KEY=
+OBJECT_STORAGE_PREFIX=
+```

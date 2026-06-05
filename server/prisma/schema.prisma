@@ -15,6 +15,21 @@ model User {
   avatarUrl       String?  @map("avatar_url")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  posts           Post[]
 
   @@map("users")
+}
+
+model Post {
+  id             String   @id @default(uuid()) @db.Uuid
+  ownerUserId    String   @map("owner_user_id") @db.Uuid
+  imageObjectKey String   @unique @map("image_object_key")
+  caption        String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  owner          User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([ownerUserId])
+  @@index([createdAt])
+  @@map("posts")
 }

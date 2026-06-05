@@ -9,6 +9,8 @@ import {
 import { useAuth } from "./auth/AuthContext";
 import type { CurrentUser } from "./api/auth";
 import { uploadPost, type UploadedPost } from "./api/posts";
+import { fetchFeedPage, type FeedPost } from "./api/feed";
+import { PostCard } from "./components/PostCard";
 
 const maxImageSizeBytes = 10 * 1024 * 1024;
 const maxCaptionLength = 2_200;
@@ -111,7 +113,13 @@ function SignInButton() {
   );
 }
 
-function UploadForm({ isAuthenticated }: { isAuthenticated: boolean }) {
+function UploadForm({
+  isAuthenticated,
+  onUploaded
+}: {
+  isAuthenticated: boolean;
+  onUploaded: () => void;
+}) {
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -203,6 +211,7 @@ function UploadForm({ isAuthenticated }: { isAuthenticated: boolean }) {
       });
 
       setUploadedPost(post);
+      onUploaded();
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
@@ -321,9 +330,160 @@ function UploadForm({ isAuthenticated }: { isAuthenticated: boolean }) {
   );
 }
 
+function FeedSection({ refreshKey }: { refreshKey: number }) {
+  const [error, setError] = useState<string | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+
+  const loadFirstPage = useMemo(
+    () => async (signal?: AbortSignal) => {
+      setError(null);
+      setIsInitialLoading(true);
+
+      try {
+        const page = await fetchFeedPage({
+          limit: 10,
+          signal
+        });
+
+        setPosts(page.posts);
+        setNextCursor(page.nextCursor);
+      } catch (loadError) {
+        if (
+          loadError instanceof DOMException &&
+          loadError.name === "AbortError"
+        ) {
+          return;
+        }
+
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "The feed could not be loaded."
+        );
+      } finally {
+        if (!signal?.aborted) {
+          setIsInitialLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void loadFirstPage(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadFirstPage, refreshKey]);
+
+  const loadMore = async () => {
+    if (!nextCursor || isLoadingMore) {
+      return;
+    }
+
+    setError(null);
+    setIsLoadingMore(true);
+
+    try {
+      const page = await fetchFeedPage({
+        cursor: nextCursor,
+        limit: 10
+      });
+
+      setPosts((currentPosts) => [...currentPosts, ...page.posts]);
+      setNextCursor(page.nextCursor);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "More posts could not be loaded."
+      );
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  return (
+    <section className="w-full border-t border-slate-200 bg-white px-6 py-12">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-coral">
+              Feed
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-950">
+              Latest posts
+            </h2>
+          </div>
+          <button
+            className="w-fit rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-wait disabled:opacity-60"
+            disabled={isInitialLoading}
+            onClick={() => void loadFirstPage()}
+            type="button"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {error ? (
+          <p className="mt-6 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+            {error}
+          </p>
+        ) : null}
+
+        {isInitialLoading ? (
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                aria-hidden="true"
+                className="h-96 animate-pulse rounded-lg border border-slate-200 bg-slate-100"
+                key={index}
+              />
+            ))}
+          </div>
+        ) : posts.length > 0 ? (
+          <>
+            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+
+            {nextCursor ? (
+              <div className="mt-8 flex justify-center">
+                <button
+                  className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-wait disabled:bg-slate-400"
+                  disabled={isLoadingMore}
+                  onClick={() => void loadMore()}
+                  type="button"
+                >
+                  {isLoadingMore ? "Loading..." : "Load more"}
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+            <p className="text-sm font-semibold text-slate-700">
+              No posts have been shared yet.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const { status } = useAuth();
   const isAuthenticated = status === "authenticated";
+  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
@@ -348,8 +508,12 @@ function App() {
             publish it to your account.
           </p>
         </div>
-        <UploadForm isAuthenticated={isAuthenticated} />
+        <UploadForm
+          isAuthenticated={isAuthenticated}
+          onUploaded={() => setFeedRefreshKey((key) => key + 1)}
+        />
       </section>
+      <FeedSection refreshKey={feedRefreshKey} />
     </main>
   );
 }

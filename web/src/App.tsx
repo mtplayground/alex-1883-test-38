@@ -330,7 +330,13 @@ function UploadForm({
   );
 }
 
-function FeedSection({ refreshKey }: { refreshKey: number }) {
+function FeedSection({
+  isAuthenticated,
+  refreshKey
+}: {
+  isAuthenticated: boolean;
+  refreshKey: number;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -451,7 +457,11 @@ function FeedSection({ refreshKey }: { refreshKey: number }) {
           <>
             <div className="mt-6 grid gap-5 sm:grid-cols-2">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard
+                  isAuthenticated={isAuthenticated}
+                  key={post.id}
+                  post={post}
+                />
               ))}
             </div>
 
@@ -513,7 +523,10 @@ function App() {
           onUploaded={() => setFeedRefreshKey((key) => key + 1)}
         />
       </section>
-      <FeedSection refreshKey={feedRefreshKey} />
+      <FeedSection
+        isAuthenticated={isAuthenticated}
+        refreshKey={feedRefreshKey}
+      />
     </main>
   );
 }

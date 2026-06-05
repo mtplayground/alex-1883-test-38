@@ -8,20 +8,28 @@ type AsyncRequestHandler = (
   ...args: Parameters<RequestHandler>
 ) => Promise<void>;
 
-class UploadRequestError extends Error {
-  statusCode = 400;
-
+class PostRequestError extends Error {
   constructor(
     message: string,
-    public code = "invalid_upload"
+    public statusCode = 400,
+    public code = "invalid_post_request"
   ) {
     super(message);
+    this.name = "PostRequestError";
+  }
+}
+
+class UploadRequestError extends PostRequestError {
+  constructor(message: string, code = "invalid_upload") {
+    super(message, 400, code);
     this.name = "UploadRequestError";
   }
 }
 
 const maxImageSizeBytes = 10 * 1024 * 1024;
 const maxCaptionLength = 2_200;
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const imageExtensionsByMimeType = new Map([
   ["image/gif", "gif"],
   ["image/jpeg", "jpg"],
@@ -69,6 +77,49 @@ const parseCaption = (value: unknown) => {
 
 const getImageExtension = (mimeType: string) =>
   imageExtensionsByMimeType.get(mimeType);
+
+const parsePostId = (value: unknown) => {
+  if (typeof value !== "string" || !uuidPattern.test(value)) {
+    throw new PostRequestError("postId must be a valid post id.");
+  }
+
+  return value;
+};
+
+const ensurePostExists = async (postId: string) => {
+  const post = await prisma.post.findUnique({
+    select: {
+      id: true
+    },
+    where: {
+      id: postId
+    }
+  });
+
+  if (!post) {
+    throw new PostRequestError("Post was not found.", 404, "post_not_found");
+  }
+};
+
+const getPostCounts = async (postId: string) => {
+  const [likeCount, commentCount] = await Promise.all([
+    prisma.like.count({
+      where: {
+        postId
+      }
+    }),
+    prisma.comment.count({
+      where: {
+        postId
+      }
+    })
+  ]);
+
+  return {
+    commentCount,
+    likeCount
+  };
+};
 
 const imageUpload: RequestHandler = (req, res, next) => {
   upload.single("image")(req, res, (error: unknown) => {
@@ -154,8 +205,61 @@ postsRouter.post(
   })
 );
 
-const uploadErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
-  if (error instanceof UploadRequestError) {
+postsRouter.post(
+  "/:postId/like",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = getAuthenticatedUser(res);
+    const postId = parsePostId(req.params.postId);
+
+    await ensurePostExists(postId);
+    await prisma.like.upsert({
+      create: {
+        postId,
+        userId: user.id
+      },
+      update: {},
+      where: {
+        userId_postId: {
+          postId,
+          userId: user.id
+        }
+      }
+    });
+
+    res.status(200).json({
+      liked: true,
+      postId,
+      ...(await getPostCounts(postId))
+    });
+  })
+);
+
+postsRouter.delete(
+  "/:postId/like",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = getAuthenticatedUser(res);
+    const postId = parsePostId(req.params.postId);
+
+    await ensurePostExists(postId);
+    await prisma.like.deleteMany({
+      where: {
+        postId,
+        userId: user.id
+      }
+    });
+
+    res.status(200).json({
+      liked: false,
+      postId,
+      ...(await getPostCounts(postId))
+    });
+  })
+);
+
+const postErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+  if (error instanceof PostRequestError) {
     res.status(error.statusCode).json({
       error: {
         code: error.code,
@@ -168,4 +272,4 @@ const uploadErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   next(error);
 };
 
-postsRouter.use(uploadErrorHandler);
+postsRouter.use(postErrorHandler);

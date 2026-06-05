@@ -73,4 +73,6 @@ GET /api/auth/google/callback
 GET /me
 GET /api/feed
 POST /api/posts
+POST /api/posts/:postId/like
+DELETE /api/posts/:postId/like
 ```

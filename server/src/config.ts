@@ -31,6 +31,13 @@ export type JwtConfig = {
   secret: string;
 };
 
+export type AuthConfig = {
+  oauthStateCookieName: string;
+  sessionCookieName: string;
+  sessionMaxAgeSeconds: number;
+  successRedirectUrl: string;
+};
+
 export type AppConfig = {
   database: DatabaseConfig;
   server: ServerConfig;
@@ -72,6 +79,20 @@ const parseBoolean = (value: string | undefined, fallback: boolean) => {
   }
 
   return ["1", "true", "yes"].includes(value.toLowerCase());
+};
+
+const parsePositiveInteger = (value: string | undefined, fallback: number) => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`Invalid positive integer value: ${value}`);
+  }
+
+  return parsed;
 };
 
 const normalizePrefix = (value: string | undefined) => {
@@ -141,4 +162,14 @@ export const getGoogleOAuthConfig = (): GoogleOAuthConfig => ({
 export const getJwtConfig = (): JwtConfig => ({
   expiresIn: getEnv("JWT_EXPIRES_IN") ?? "7d",
   secret: getRequiredEnv("JWT_SECRET")
+});
+
+export const getAuthConfig = (): AuthConfig => ({
+  oauthStateCookieName: getEnv("OAUTH_STATE_COOKIE_NAME") ?? "oauth_state",
+  sessionCookieName: getEnv("SESSION_COOKIE_NAME") ?? "session",
+  sessionMaxAgeSeconds: parsePositiveInteger(
+    getEnv("SESSION_MAX_AGE_SECONDS"),
+    60 * 60 * 24 * 7
+  ),
+  successRedirectUrl: getEnv("AUTH_SUCCESS_REDIRECT_URL") ?? "/"
 });

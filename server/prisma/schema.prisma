@@ -18,6 +18,8 @@ model User {
   posts           Post[]
   likes           Like[]
   comments        Comment[]
+  following       Follow[] @relation("Follower")
+  followers       Follow[] @relation("Followee")
 
   @@map("users")
 }
@@ -66,4 +68,18 @@ model Comment {
   @@index([userId])
   @@index([createdAt])
   @@map("comments")
+}
+
+model Follow {
+  id         String   @id @default(uuid()) @db.Uuid
+  followerId String   @map("follower_id") @db.Uuid
+  followeeId String   @map("followee_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee   User     @relation("Followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followeeId])
+  @@index([followerId])
+  @@index([followeeId])
+  @@map("follows")
 }

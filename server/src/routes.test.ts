@@ -6,6 +6,7 @@ import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { createApp as createAppType } from "./app.js";
 import type { createSessionToken as createSessionTokenType } from "./auth/session.js";
+import type { validateEnvironment as validateEnvironmentType } from "./config.js";
 
 process.env.NODE_ENV = "test";
 process.env.JWT_SECRET ??= "test-jwt-secret-for-backend-unit-tests";
@@ -34,6 +35,20 @@ const readJson = async (response: Response) =>
 const authHeaders = (user: Pick<User, "email" | "googleSubjectId" | "id">) => ({
   Authorization: `Bearer ${createSessionToken(user)}`
 });
+
+const assertApiError = async (
+  response: Response,
+  status: number,
+  code: string
+) => {
+  const payload = await readJson(response);
+  const error = payload.error as JsonValue;
+
+  assert.equal(response.status, status);
+  assert.equal(error.code, code);
+  assert.equal(typeof error.message, "string");
+  assert.notEqual(error.message, "");
+};
 
 const createTestUser = ({ avatarUrl = null, label, name }: TestUserInput) => {
   const googleSubjectId = `${runId}-${label}`;
@@ -212,6 +227,20 @@ test("auth middleware rejects missing tokens and returns current user for valid 
   assert.equal(currentUserResponse.status, 200);
   assert.equal((currentUserPayload.user as JsonValue).id, user.id);
   assert.equal((currentUserPayload.user as JsonValue).email, user.email);
+});
+
+test("api errors use a consistent error envelope", async () => {
+  await assertApiError(await request("/api/does-not-exist"), 404, "not_found");
+  await assertApiError(
+    await request("/api/feed?limit=0"),
+    400,
+    "invalid_feed_request"
+  );
+  await assertApiError(
+    await request("/api/auth/google/callback"),
+    400,
+    "oauth_request_error"
+  );
 });
 
 test("post upload controller requires auth and validates missing images", async () => {
@@ -434,4 +463,87 @@ test("follow endpoints toggle relationships and profile returns stats with posts
   assert.equal(unfollowPayload.following, false);
   assert.equal(unfollowPayload.followerCount, 0);
   assert.equal(unfollowPayload.followingCount, 1);
+});
+
+test("environment validation reports self-host configuration problems", async () => {
+  const { validateEnvironment } = (await import("./config.js")) as {
+    validateEnvironment: typeof validateEnvironmentType;
+  };
+  const names = [
+    "AWS_ACCESS_KEY_ID",
+    "AWS_BUCKET",
+    "AWS_ENDPOINT_URL_S3",
+    "AWS_SECRET_ACCESS_KEY",
+    "AUTH_SUCCESS_REDIRECT_URL",
+    "CORS_ORIGIN",
+    "DATABASE_URL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REDIRECT_URI",
+    "JWT_SECRET",
+    "OBJECT_STORAGE_ACCESS_KEY_ID",
+    "OBJECT_STORAGE_BUCKET",
+    "OBJECT_STORAGE_ENDPOINT",
+    "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+    "PORT",
+    "S3_ACCESS_KEY_ID",
+    "S3_BUCKET",
+    "S3_ENDPOINT",
+    "S3_SECRET_ACCESS_KEY",
+    "SESSION_MAX_AGE_SECONDS"
+  ];
+  const snapshot = new Map(
+    names.map((name) => [name, process.env[name]] as const)
+  );
+
+  try {
+    for (const name of names) {
+      delete process.env[name];
+    }
+
+    assert.throws(
+      () => validateEnvironment(),
+      /Missing required environment variables:/
+    );
+
+    process.env.DATABASE_URL = "postgresql://user:password@localhost:5432/app";
+    process.env.GOOGLE_CLIENT_ID = "client-id";
+    process.env.GOOGLE_CLIENT_SECRET = "client-secret";
+    process.env.GOOGLE_OAUTH_REDIRECT_URI = "not-a-url";
+    process.env.JWT_SECRET = "0123456789abcdef0123456789abcdef";
+    process.env.OBJECT_STORAGE_ACCESS_KEY_ID = "access-key";
+    process.env.OBJECT_STORAGE_BUCKET = "bucket";
+    process.env.OBJECT_STORAGE_ENDPOINT = "https://storage.example.test";
+    process.env.OBJECT_STORAGE_SECRET_ACCESS_KEY = "secret-key";
+
+    assert.throws(
+      () => validateEnvironment(),
+      /GOOGLE_OAUTH_REDIRECT_URI must be a valid URL/
+    );
+
+    process.env.GOOGLE_OAUTH_REDIRECT_URI =
+      "http://localhost:8080/api/auth/google/callback";
+    process.env.CORS_ORIGIN = "not-a-url";
+
+    assert.throws(
+      () => validateEnvironment(),
+      /CORS_ORIGIN must be a valid URL/
+    );
+
+    process.env.CORS_ORIGIN = "http://localhost:8080";
+    process.env.JWT_SECRET = "too-short";
+
+    assert.throws(
+      () => validateEnvironment(),
+      /JWT_SECRET must be at least 32 characters long/
+    );
+  } finally {
+    for (const [name, value] of snapshot) {
+      if (typeof value === "undefined") {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
 });

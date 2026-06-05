@@ -6,6 +6,11 @@ export type ServerConfig = {
   port: number;
 };
 
+export type CorsConfig = {
+  credentials: boolean;
+  origin: boolean | string[];
+};
+
 export type DatabaseConfig = {
   url: string;
 };
@@ -41,6 +46,11 @@ export type AuthConfig = {
 export type AppConfig = {
   database: DatabaseConfig;
   server: ServerConfig;
+};
+
+type EnvRequirement = {
+  aliases?: string[];
+  name: string;
 };
 
 const getEnv = (name: string) => process.env[name];
@@ -81,6 +91,17 @@ const parseBoolean = (value: string | undefined, fallback: boolean) => {
   return ["1", "true", "yes"].includes(value.toLowerCase());
 };
 
+const parseList = (value: string | undefined) => {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
 const parsePositiveInteger = (value: string | undefined, fallback: number) => {
   if (!value) {
     return fallback;
@@ -95,12 +116,37 @@ const parsePositiveInteger = (value: string | undefined, fallback: number) => {
   return parsed;
 };
 
+const assertUrl = (value: string, name: string) => {
+  try {
+    new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid URL`);
+  }
+};
+
+const collectMissingEnv = ({ aliases = [], name }: EnvRequirement) => {
+  const candidates = [name, ...aliases];
+  const hasValue = candidates.some((candidate) => Boolean(getEnv(candidate)));
+
+  return hasValue ? null : name;
+};
+
 const normalizePrefix = (value: string | undefined) => {
   if (!value) {
     return "";
   }
 
   return value.replace(/^\/+|\/+$/g, "");
+};
+
+const parseCorsOrigin = (): CorsConfig["origin"] => {
+  const origins = parseList(getEnv("CORS_ORIGIN"));
+
+  if (origins.length > 0) {
+    return origins;
+  }
+
+  return serverConfig.nodeEnv === "production" ? false : true;
 };
 
 export const serverConfig: ServerConfig = {
@@ -173,3 +219,81 @@ export const getAuthConfig = (): AuthConfig => ({
   ),
   successRedirectUrl: getEnv("AUTH_SUCCESS_REDIRECT_URL") ?? "/"
 });
+
+export const getCorsConfig = (): CorsConfig => ({
+  credentials: true,
+  origin: parseCorsOrigin()
+});
+
+export const validateEnvironment = () => {
+  const requiredVariables: EnvRequirement[] = [
+    {
+      name: "DATABASE_URL"
+    },
+    {
+      aliases: [
+        "AWS_ACCESS_KEY_ID",
+        "S3_ACCESS_KEY_ID",
+        "TIGRIS_ACCESS_KEY_ID"
+      ],
+      name: "OBJECT_STORAGE_ACCESS_KEY_ID"
+    },
+    {
+      aliases: ["AWS_BUCKET", "S3_BUCKET", "TIGRIS_BUCKET"],
+      name: "OBJECT_STORAGE_BUCKET"
+    },
+    {
+      aliases: ["AWS_ENDPOINT_URL_S3", "S3_ENDPOINT", "TIGRIS_ENDPOINT"],
+      name: "OBJECT_STORAGE_ENDPOINT"
+    },
+    {
+      aliases: [
+        "AWS_SECRET_ACCESS_KEY",
+        "S3_SECRET_ACCESS_KEY",
+        "TIGRIS_SECRET_ACCESS_KEY"
+      ],
+      name: "OBJECT_STORAGE_SECRET_ACCESS_KEY"
+    },
+    {
+      name: "GOOGLE_CLIENT_ID"
+    },
+    {
+      name: "GOOGLE_CLIENT_SECRET"
+    },
+    {
+      name: "GOOGLE_OAUTH_REDIRECT_URI"
+    },
+    {
+      name: "JWT_SECRET"
+    }
+  ];
+  const missingVariables = requiredVariables
+    .map(collectMissingEnv)
+    .filter((name): name is string => Boolean(name));
+
+  if (missingVariables.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missingVariables.join(", ")}`
+    );
+  }
+
+  parsePort(getEnv("PORT"));
+  parsePositiveInteger(getEnv("SESSION_MAX_AGE_SECONDS"), 60 * 60 * 24 * 7);
+  assertUrl(getRequiredEnv("DATABASE_URL"), "DATABASE_URL");
+  assertUrl(getGoogleOAuthConfig().redirectUri, "GOOGLE_OAUTH_REDIRECT_URI");
+  assertUrl(getObjectStorageConfig().endpoint, "OBJECT_STORAGE_ENDPOINT");
+
+  for (const origin of parseList(getEnv("CORS_ORIGIN"))) {
+    assertUrl(origin, "CORS_ORIGIN");
+  }
+
+  const successRedirectUrl = getAuthConfig().successRedirectUrl;
+
+  if (successRedirectUrl !== "/") {
+    assertUrl(successRedirectUrl, "AUTH_SUCCESS_REDIRECT_URL");
+  }
+
+  if (getJwtConfig().secret.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters long");
+  }
+};

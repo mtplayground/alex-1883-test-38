@@ -1,10 +1,7 @@
 import { Prisma } from "@prisma/client";
-import { Router, type ErrorRequestHandler, type RequestHandler } from "express";
+import { Router, type ErrorRequestHandler } from "express";
 import { prisma } from "../db/client.js";
-
-type AsyncRequestHandler = (
-  ...args: Parameters<RequestHandler>
-) => Promise<void>;
+import { ApiError, asyncHandler, sendApiError } from "../http/errors.js";
 
 type InteractionCounts = {
   commentCount: number;
@@ -21,14 +18,12 @@ type CountRow = {
   postId: string;
 };
 
-class FeedRequestError extends Error {
-  statusCode = 400;
-
-  constructor(
-    message: string,
-    public code = "invalid_feed_request"
-  ) {
-    super(message);
+class FeedRequestError extends ApiError {
+  constructor(message: string, code = "invalid_feed_request") {
+    super(message, {
+      code,
+      statusCode: 400
+    });
     this.name = "FeedRequestError";
   }
 }
@@ -37,12 +32,6 @@ const defaultLimit = 20;
 const maxLimit = 50;
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const asyncHandler =
-  (handler: AsyncRequestHandler): RequestHandler =>
-  (req, res, next) => {
-    void handler(req, res, next).catch(next);
-  };
 
 const parseSingleQueryValue = (value: unknown, name: string) => {
   if (Array.isArray(value)) {
@@ -263,12 +252,7 @@ feedRouter.get(
 
 const feedErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error instanceof FeedRequestError) {
-    res.status(error.statusCode).json({
-      error: {
-        code: error.code,
-        message: error.message
-      }
-    });
+    sendApiError(res, error);
     return;
   }
 

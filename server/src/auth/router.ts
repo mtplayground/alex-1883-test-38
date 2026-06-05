@@ -1,13 +1,9 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { parse } from "cookie";
-import {
-  Router,
-  type CookieOptions,
-  type ErrorRequestHandler,
-  type RequestHandler
-} from "express";
+import { Router, type CookieOptions, type ErrorRequestHandler } from "express";
 import { getAuthConfig, serverConfig } from "../config.js";
 import { prisma } from "../db/client.js";
+import { ApiError, asyncHandler, sendApiError } from "../http/errors.js";
 import {
   buildGoogleAuthorizationUrl,
   exchangeGoogleAuthorizationCode,
@@ -16,24 +12,15 @@ import {
 } from "./google.js";
 import { createSessionToken } from "./session.js";
 
-type AsyncRequestHandler = (
-  ...args: Parameters<RequestHandler>
-) => Promise<void>;
-
-class OAuthRequestError extends Error {
-  statusCode = 400;
-
+class OAuthRequestError extends ApiError {
   constructor(message: string) {
-    super(message);
+    super(message, {
+      code: "oauth_request_error",
+      statusCode: 400
+    });
     this.name = "OAuthRequestError";
   }
 }
-
-const asyncHandler =
-  (handler: AsyncRequestHandler): RequestHandler =>
-  (req, res, next) => {
-    void handler(req, res, next).catch(next);
-  };
 
 const createState = () => randomBytes(32).toString("base64url");
 
@@ -140,12 +127,7 @@ authRouter.get(
 
 const oauthErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error instanceof OAuthRequestError) {
-    res.status(error.statusCode).json({
-      error: {
-        code: "oauth_request_error",
-        message: error.message
-      }
-    });
+    sendApiError(res, error);
     return;
   }
 

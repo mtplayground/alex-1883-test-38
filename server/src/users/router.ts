@@ -1,23 +1,23 @@
-import { Router, type ErrorRequestHandler, type RequestHandler } from "express";
+import { Router, type ErrorRequestHandler } from "express";
 import { getAuthenticatedUser, requireAuth } from "../auth/middleware.js";
 import { prisma } from "../db/client.js";
-
-type AsyncRequestHandler = (
-  ...args: Parameters<RequestHandler>
-) => Promise<void>;
+import { ApiError, asyncHandler, sendApiError } from "../http/errors.js";
 
 type InteractionCounts = {
   commentCount: number;
   likeCount: number;
 };
 
-class UserRequestError extends Error {
+class UserRequestError extends ApiError {
   constructor(
     message: string,
-    public statusCode = 400,
-    public code = "invalid_user_request"
+    statusCode = 400,
+    code = "invalid_user_request"
   ) {
-    super(message);
+    super(message, {
+      code,
+      statusCode
+    });
     this.name = "UserRequestError";
   }
 }
@@ -26,12 +26,6 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const defaultProfilePostLimit = 20;
 const maxProfilePostLimit = 50;
-
-const asyncHandler =
-  (handler: AsyncRequestHandler): RequestHandler =>
-  (req, res, next) => {
-    void handler(req, res, next).catch(next);
-  };
 
 const parseSingleQueryValue = (value: unknown, name: string) => {
   if (Array.isArray(value)) {
@@ -395,12 +389,7 @@ usersRouter.delete(
 
 const userErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error instanceof UserRequestError) {
-    res.status(error.statusCode).json({
-      error: {
-        code: error.code,
-        message: error.message
-      }
-    });
+    sendApiError(res, error);
     return;
   }
 

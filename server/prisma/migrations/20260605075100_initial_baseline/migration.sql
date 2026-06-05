@@ -1,0 +1,2 @@
+-- Initial PostgreSQL baseline for Prisma migrations.
+-- Application tables are added by follow-up feature migrations.

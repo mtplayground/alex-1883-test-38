@@ -30,3 +30,16 @@ Build all workspaces:
 ```bash
 npm run build
 ```
+
+Generate the Prisma client:
+
+```bash
+npm run prisma:generate --workspace server
+```
+
+Deploy database migrations with `DATABASE_URL` from the environment:
+
+```bash
+export DATABASE_URL=$(cat /workspace/.database_url)
+npm run prisma:migrate:deploy --workspace server
+```

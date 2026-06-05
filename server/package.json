@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
+    "test": "node --import tsx --test src/routes.test.ts",
     "typecheck": "npm run prisma:generate && tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js"
   },

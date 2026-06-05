@@ -1,6 +1,7 @@
 import { Router, type ErrorRequestHandler, type RequestHandler } from "express";
 import multer from "multer";
 import { getAuthenticatedUser, requireAuth } from "../auth/middleware.js";
+import { isObjectStorageConfigured } from "../config.js";
 import { prisma } from "../db/client.js";
 import {
   ApiError,
@@ -233,6 +234,20 @@ const imageUpload: RequestHandler = (req, res, next) => {
   });
 };
 
+const requireObjectStorage = (res: Parameters<RequestHandler>[1]) => {
+  if (!isObjectStorageConfigured()) {
+    sendErrorResponse(
+      res,
+      503,
+      "object_storage_unavailable",
+      "Image uploads are not configured for this deployment."
+    );
+    return false;
+  }
+
+  return true;
+};
+
 const serializePost = (post: {
   caption: string | null;
   createdAt: Date;
@@ -300,6 +315,11 @@ postsRouter.post(
 
     const body = req.body as Record<string, unknown>;
     const caption = parseCaption(body.caption);
+
+    if (!requireObjectStorage(res)) {
+      return;
+    }
+
     const uploadedImage = await uploadImageObject({
       body: file.buffer,
       contentType: file.mimetype,

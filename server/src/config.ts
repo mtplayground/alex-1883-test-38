@@ -54,6 +54,39 @@ type EnvRequirement = {
 };
 
 const getEnv = (name: string) => process.env[name];
+const objectStorageRequirements: EnvRequirement[] = [
+  {
+    aliases: ["AWS_ACCESS_KEY_ID", "S3_ACCESS_KEY_ID", "TIGRIS_ACCESS_KEY_ID"],
+    name: "OBJECT_STORAGE_ACCESS_KEY_ID"
+  },
+  {
+    aliases: ["AWS_BUCKET", "S3_BUCKET", "TIGRIS_BUCKET"],
+    name: "OBJECT_STORAGE_BUCKET"
+  },
+  {
+    aliases: ["AWS_ENDPOINT_URL_S3", "S3_ENDPOINT", "TIGRIS_ENDPOINT"],
+    name: "OBJECT_STORAGE_ENDPOINT"
+  },
+  {
+    aliases: [
+      "AWS_SECRET_ACCESS_KEY",
+      "S3_SECRET_ACCESS_KEY",
+      "TIGRIS_SECRET_ACCESS_KEY"
+    ],
+    name: "OBJECT_STORAGE_SECRET_ACCESS_KEY"
+  }
+];
+const googleOAuthRequirements: EnvRequirement[] = [
+  {
+    name: "GOOGLE_CLIENT_ID"
+  },
+  {
+    name: "GOOGLE_CLIENT_SECRET"
+  },
+  {
+    name: "GOOGLE_OAUTH_REDIRECT_URI"
+  }
+];
 
 const getRequiredEnv = (name: string, aliases: string[] = []) => {
   const candidates = [name, ...aliases];
@@ -131,6 +164,12 @@ const collectMissingEnv = ({ aliases = [], name }: EnvRequirement) => {
   return hasValue ? null : name;
 };
 
+const hasAnyEnv = ({ aliases = [], name }: EnvRequirement) =>
+  [name, ...aliases].some((candidate) => Boolean(getEnv(candidate)));
+
+const hasAllEnv = (requirements: EnvRequirement[]) =>
+  requirements.every((requirement) => !collectMissingEnv(requirement));
+
 const normalizePrefix = (value: string | undefined) => {
   if (!value) {
     return "";
@@ -205,6 +244,11 @@ export const getGoogleOAuthConfig = (): GoogleOAuthConfig => ({
   redirectUri: getRequiredEnv("GOOGLE_OAUTH_REDIRECT_URI")
 });
 
+export const isGoogleOAuthConfigured = () => hasAllEnv(googleOAuthRequirements);
+
+export const isObjectStorageConfigured = () =>
+  hasAllEnv(objectStorageRequirements);
+
 export const getJwtConfig = (): JwtConfig => ({
   expiresIn: getEnv("JWT_EXPIRES_IN") ?? "7d",
   secret: getRequiredEnv("JWT_SECRET")
@@ -231,39 +275,6 @@ export const validateEnvironment = () => {
       name: "DATABASE_URL"
     },
     {
-      aliases: [
-        "AWS_ACCESS_KEY_ID",
-        "S3_ACCESS_KEY_ID",
-        "TIGRIS_ACCESS_KEY_ID"
-      ],
-      name: "OBJECT_STORAGE_ACCESS_KEY_ID"
-    },
-    {
-      aliases: ["AWS_BUCKET", "S3_BUCKET", "TIGRIS_BUCKET"],
-      name: "OBJECT_STORAGE_BUCKET"
-    },
-    {
-      aliases: ["AWS_ENDPOINT_URL_S3", "S3_ENDPOINT", "TIGRIS_ENDPOINT"],
-      name: "OBJECT_STORAGE_ENDPOINT"
-    },
-    {
-      aliases: [
-        "AWS_SECRET_ACCESS_KEY",
-        "S3_SECRET_ACCESS_KEY",
-        "TIGRIS_SECRET_ACCESS_KEY"
-      ],
-      name: "OBJECT_STORAGE_SECRET_ACCESS_KEY"
-    },
-    {
-      name: "GOOGLE_CLIENT_ID"
-    },
-    {
-      name: "GOOGLE_CLIENT_SECRET"
-    },
-    {
-      name: "GOOGLE_OAUTH_REDIRECT_URI"
-    },
-    {
       name: "JWT_SECRET"
     }
   ];
@@ -277,11 +288,44 @@ export const validateEnvironment = () => {
     );
   }
 
+  const optionalGroups = [
+    {
+      name: "object storage",
+      requirements: objectStorageRequirements
+    },
+    {
+      name: "Google OAuth",
+      requirements: googleOAuthRequirements
+    }
+  ];
+
+  for (const group of optionalGroups) {
+    if (!group.requirements.some(hasAnyEnv)) {
+      continue;
+    }
+
+    const missingGroupVariables = group.requirements
+      .map(collectMissingEnv)
+      .filter((name): name is string => Boolean(name));
+
+    if (missingGroupVariables.length > 0) {
+      throw new Error(
+        `Incomplete ${group.name} environment variables: ${missingGroupVariables.join(", ")}`
+      );
+    }
+  }
+
   parsePort(getEnv("PORT"));
   parsePositiveInteger(getEnv("SESSION_MAX_AGE_SECONDS"), 60 * 60 * 24 * 7);
   assertUrl(getRequiredEnv("DATABASE_URL"), "DATABASE_URL");
-  assertUrl(getGoogleOAuthConfig().redirectUri, "GOOGLE_OAUTH_REDIRECT_URI");
-  assertUrl(getObjectStorageConfig().endpoint, "OBJECT_STORAGE_ENDPOINT");
+
+  if (isGoogleOAuthConfigured()) {
+    assertUrl(getGoogleOAuthConfig().redirectUri, "GOOGLE_OAUTH_REDIRECT_URI");
+  }
+
+  if (isObjectStorageConfigured()) {
+    assertUrl(getObjectStorageConfig().endpoint, "OBJECT_STORAGE_ENDPOINT");
+  }
 
   for (const origin of parseList(getEnv("CORS_ORIGIN"))) {
     assertUrl(origin, "CORS_ORIGIN");

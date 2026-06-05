@@ -208,8 +208,10 @@ test("auth middleware rejects missing tokens and returns current user for valid 
   });
 
   const missingTokenResponse = await request("/me");
+  const missingTokenPayload = await readJson(missingTokenResponse);
 
-  assert.equal(missingTokenResponse.status, 401);
+  assert.equal(missingTokenResponse.status, 200);
+  assert.equal(missingTokenPayload.user, null);
 
   const invalidTokenResponse = await request("/me", {
     headers: {

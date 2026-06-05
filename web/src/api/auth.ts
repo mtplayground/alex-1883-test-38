@@ -9,7 +9,7 @@ export type CurrentUser = {
 };
 
 type CurrentUserResponse = {
-  user: CurrentUser;
+  user: CurrentUser | null;
 };
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ?? "";
@@ -40,17 +40,13 @@ const isCurrentUser = (value: unknown): value is CurrentUser => {
 };
 
 const isCurrentUserResponse = (value: unknown): value is CurrentUserResponse =>
-  isRecord(value) && isCurrentUser(value.user);
+  isRecord(value) && (value.user === null || isCurrentUser(value.user));
 
 export const fetchCurrentUser = async (signal?: AbortSignal) => {
   const response = await fetch(buildApiUrl("/me"), {
     credentials: "include",
     signal
   });
-
-  if (response.status === 401) {
-    return null;
-  }
 
   if (!response.ok) {
     throw new Error(

@@ -56,10 +56,13 @@ describe("AuthProvider", () => {
     );
   });
 
-  it("treats a 401 current-user response as unauthenticated", async () => {
+  it("treats an anonymous current-user response as unauthenticated", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(null, {
-        status: 401
+      new Response(JSON.stringify({ user: null }), {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        status: 200
       })
     );
 

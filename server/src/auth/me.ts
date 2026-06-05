@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAuthenticatedUser, requireAuth } from "./middleware.js";
+import { getAuthenticatedUser, optionalAuth } from "./middleware.js";
 
 const serializeUser = (user: ReturnType<typeof getAuthenticatedUser>) => ({
   avatarUrl: user.avatarUrl,
@@ -13,10 +13,10 @@ const serializeUser = (user: ReturnType<typeof getAuthenticatedUser>) => ({
 
 export const meRouter = Router();
 
-meRouter.get("/me", requireAuth, (_req, res) => {
-  const user = getAuthenticatedUser(res);
+meRouter.get("/me", optionalAuth, (_req, res) => {
+  const user = res.locals.authenticatedUser ? getAuthenticatedUser(res) : null;
 
   res.status(200).json({
-    user: serializeUser(user)
+    user: user ? serializeUser(user) : null
   });
 });

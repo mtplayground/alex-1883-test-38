@@ -1,7 +1,11 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { parse } from "cookie";
 import { Router, type CookieOptions, type ErrorRequestHandler } from "express";
-import { getAuthConfig, serverConfig } from "../config.js";
+import {
+  getAuthConfig,
+  isGoogleOAuthConfigured,
+  serverConfig
+} from "../config.js";
 import { prisma } from "../db/client.js";
 import { ApiError, asyncHandler, sendApiError } from "../http/errors.js";
 import {
@@ -19,6 +23,16 @@ class OAuthRequestError extends ApiError {
       statusCode: 400
     });
     this.name = "OAuthRequestError";
+  }
+}
+
+class OAuthUnavailableError extends ApiError {
+  constructor() {
+    super("Google sign-in is not configured for this deployment.", {
+      code: "oauth_unavailable",
+      statusCode: 503
+    });
+    this.name = "OAuthUnavailableError";
   }
 }
 
@@ -70,6 +84,10 @@ export const authRouter = Router();
 
 authRouter.get("/google", (req, res, next) => {
   try {
+    if (!isGoogleOAuthConfigured()) {
+      throw new OAuthUnavailableError();
+    }
+
     const authConfig = getAuthConfig();
     const state = createState();
     const authorizationUrl = buildGoogleAuthorizationUrl(state);
@@ -111,6 +129,10 @@ authRouter.get(
       throw new OAuthRequestError("Google OAuth state did not match");
     }
 
+    if (!isGoogleOAuthConfigured()) {
+      throw new OAuthUnavailableError();
+    }
+
     const tokens = await exchangeGoogleAuthorizationCode(code);
     const profile = await fetchGoogleUserProfile(tokens.accessToken);
     const user = await upsertUserFromGoogleProfile(profile);
@@ -126,7 +148,10 @@ authRouter.get(
 );
 
 const oauthErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
-  if (error instanceof OAuthRequestError) {
+  if (
+    error instanceof OAuthRequestError ||
+    error instanceof OAuthUnavailableError
+  ) {
     sendApiError(res, error);
     return;
   }

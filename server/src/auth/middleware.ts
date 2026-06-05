@@ -1,5 +1,5 @@
 import { parse } from "cookie";
-import type { RequestHandler, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 import { getAuthConfig } from "../config.js";
 import { prisma } from "../db/client.js";
 import { sendErrorResponse } from "../http/errors.js";
@@ -40,39 +40,66 @@ const getSessionToken = (cookieHeader: string | undefined) => {
   return cookies[authConfig.sessionCookieName];
 };
 
+const getRequestToken = (req: Request) =>
+  getBearerToken(req.headers.authorization) ??
+  getSessionToken(req.headers.cookie);
+
+const attachAuthenticatedUser = async (
+  req: Request,
+  res: Response,
+  token: string
+) => {
+  let payload;
+
+  try {
+    payload = verifySessionToken(token);
+  } catch {
+    unauthorized(res);
+    return false;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id: payload.sub
+    }
+  });
+
+  if (!user) {
+    unauthorized(res);
+    return false;
+  }
+
+  res.locals.authenticatedUser = user;
+  return true;
+};
+
+export const optionalAuth: RequestHandler = (req, res, next) => {
+  void (async () => {
+    const token = getRequestToken(req);
+
+    if (!token) {
+      next();
+      return;
+    }
+
+    if (await attachAuthenticatedUser(req, res, token)) {
+      next();
+    }
+  })().catch(next);
+};
+
 export const requireAuth: RequestHandler = (req, res, next) => {
   void (async () => {
-    const token =
-      getBearerToken(req.headers.authorization) ??
-      getSessionToken(req.headers.cookie);
+    const token = getRequestToken(req);
 
     if (!token) {
       unauthorized(res);
       return;
     }
 
-    let payload;
-
-    try {
-      payload = verifySessionToken(token);
-    } catch {
-      unauthorized(res);
-      return;
+    if (await attachAuthenticatedUser(req, res, token)) {
+      next();
     }
-
-    const user = await prisma.user.findUnique({
-      where: {
-        id: payload.sub
-      }
-    });
-
-    if (!user) {
-      unauthorized(res);
-      return;
-    }
-
-    res.locals.authenticatedUser = user;
-    next();
   })().catch(next);
 };
 
